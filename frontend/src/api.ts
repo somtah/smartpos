@@ -1,6 +1,9 @@
 import { Product } from './types';
+import { isAuthBypass } from './authMode';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:4000';
+/** คู่กับ backend DISABLE_AUTH — ค่าเริ่มต้นเปิด bypass (ดู authMode.ts) */
+const AUTH_DISABLED = isAuthBypass();
 const AUTH_STORAGE_KEY = 'smartpos_auth_tokens';
 
 type AuthTokens = {
@@ -114,11 +117,13 @@ function mapApiProductToUi(product: {
   };
 }
 
-export async function login(email: string, password: string): Promise<AuthTokens> {
+export async function login(_email: string, _password: string): Promise<AuthTokens> {
+  throw new Error('Login is temporarily disabled');
+  /*
   const response = await fetch(`${API_BASE_URL}/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ email: _email, password: _password }),
   });
 
   if (!response.ok) {
@@ -131,17 +136,20 @@ export async function login(email: string, password: string): Promise<AuthTokens
   };
   setCachedTokens(tokens);
   return tokens;
+  */
 }
 
 export async function register(
-  fullName: string,
-  email: string,
-  password: string,
+  _fullName: string,
+  _email: string,
+  _password: string,
 ): Promise<AuthTokens> {
+  throw new Error('Register is temporarily disabled');
+  /*
   const response = await fetch(`${API_BASE_URL}/auth/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ fullName, email, password }),
+    body: JSON.stringify({ fullName: _fullName, email: _email, password: _password }),
   });
 
   if (!response.ok) {
@@ -154,6 +162,7 @@ export async function register(
   };
   setCachedTokens(tokens);
   return tokens;
+  */
 }
 
 export function logout() {
@@ -161,27 +170,35 @@ export function logout() {
 }
 
 export function isAuthenticated() {
-  return Boolean(getCachedTokens()?.accessToken);
+  return AUTH_DISABLED || Boolean(getCachedTokens()?.accessToken);
 }
 
 async function ensureToken(): Promise<string> {
+  if (AUTH_DISABLED) return '';
   const tokens = getCachedTokens();
   if (tokens?.accessToken) return tokens.accessToken;
   throw new Error('Not authenticated');
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  let token = await ensureToken();
-  let response = await fetch(`${API_BASE_URL}${path}`, {
+  const token = await ensureToken();
+  const response = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(init?.headers ?? {}),
     },
   });
 
   if (response.status === 401) {
+    if (AUTH_DISABLED) {
+      const detail = await response.text();
+      throw new Error(
+        detail ||
+          'API ส่ง 401 — ตรวจสอบ backend: ต้องมี user admin@smartpos.local (รัน npx prisma db seed) และอย่าตั้ง DISABLE_AUTH=false ถ้าไม่ต้องการ login',
+      );
+    }
     setCachedTokens(null);
     throw new Error('Session expired. Please login again.');
   }
@@ -202,12 +219,19 @@ async function requestMultipart<T>(
   const response = await fetch(`${API_BASE_URL}${path}`, {
     method,
     headers: {
-      Authorization: `Bearer ${token}`,
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     body: formData,
   });
 
   if (response.status === 401) {
+    if (AUTH_DISABLED) {
+      const detail = await response.text();
+      throw new Error(
+        detail ||
+          'API ส่ง 401 — ตรวจสอบ backend: ต้องมี user admin@smartpos.local (รัน npx prisma db seed) และอย่าตั้ง DISABLE_AUTH=false ถ้าไม่ต้องการ login',
+      );
+    }
     setCachedTokens(null);
     throw new Error('Session expired. Please login again.');
   }

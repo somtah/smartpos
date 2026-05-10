@@ -11,8 +11,6 @@ import { Catalog } from './components/views/Catalog';
 import { Cart } from './components/views/Cart';
 import { Checkout } from './components/views/Checkout';
 import { Inventory } from './components/views/Inventory';
-import { Login } from './components/views/Login';
-import { Register } from './components/views/Register';
 import { ViewType, Product, CartItem } from './types';
 import {
   createOrder,
@@ -23,22 +21,20 @@ import {
   fetchSalesReport,
   fetchStockMovements,
   StockMovementApi,
-  isAuthenticated as hasAuth,
-  login as loginApi,
   logout as logoutApi,
   OrderListItem,
-  register as registerApi,
   updateProduct as updateProductApi,
 } from './api';
 import { AlertDialog } from './components/ui/AlertDialog';
+import { isAuthBypass } from './authMode';
+
+const AUTH_DISABLED = isAuthBypass();
 
 export default function App() {
   const [products, setProducts] = useState<Product[]>([]);
-  const [currentView, setCurrentView] = useState<ViewType>(
-    hasAuth() ? 'dashboard' : 'login',
-  );
+  const [currentView, setCurrentView] = useState<ViewType>('dashboard');
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(hasAuth());
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(true);
   const [stats, setStats] = useState({
     revenue: 0,
     orders: 0,
@@ -55,7 +51,7 @@ export default function App() {
   const [endShiftDialogOpen, setEndShiftDialogOpen] = useState(false);
 
   const refreshData = useCallback(async () => {
-    const [apiProducts, report, orders, me, movements] = await Promise.all([
+    const results = await Promise.allSettled([
       fetchProducts(),
       fetchSalesReport(),
       fetchOrders(),
@@ -63,49 +59,70 @@ export default function App() {
       fetchStockMovements(50),
     ]);
 
-    setProducts(apiProducts);
-    setStockLogs(movements);
-    setStats({
-      revenue: report.totalSales,
-      orders: report.ordersCount,
-      target: 250,
-      averageTicket: report.averageOrderValue,
-      growth: 0,
-    });
-    setTransactions(
-      orders.slice(0, 6).map((order: OrderListItem) => ({
-        id: order.orderNumber,
-        name: order.cashier?.fullName ?? 'Walk-in Customer',
-        amount: Number(order.totalAmount),
-        status: 'Completed',
-        time: new Date(order.createdAt).toLocaleTimeString([], {
-          hour: '2-digit',
-          minute: '2-digit',
-        }),
-      })),
+    const failed = results.filter(
+      (r): r is PromiseRejectedResult => r.status === 'rejected',
     );
-    setStaffName(me.email);
+    if (failed.length > 0) {
+      const detail = failed
+        .map((r) => (r.reason instanceof Error ? r.reason.message : String(r.reason)))
+        .join(' · ');
+      setErrorAlert({
+        title: 'โหลดข้อมูลไม่ครบ',
+        message: detail,
+      });
+    }
+
+    const [productsRes, reportRes, ordersRes, meRes, movementsRes] = results;
+
+    if (productsRes.status === 'fulfilled') {
+      setProducts(productsRes.value);
+    }
+    if (movementsRes.status === 'fulfilled') {
+      setStockLogs(movementsRes.value);
+    }
+    if (reportRes.status === 'fulfilled') {
+      const report = reportRes.value;
+      setStats({
+        revenue: report.totalSales,
+        orders: report.ordersCount,
+        target: 250,
+        averageTicket: report.averageOrderValue,
+        growth: 0,
+      });
+    }
+    if (ordersRes.status === 'fulfilled') {
+      const orders = ordersRes.value;
+      setTransactions(
+        orders.slice(0, 6).map((order: OrderListItem) => ({
+          id: order.orderNumber,
+          name: order.cashier?.fullName ?? 'Walk-in Customer',
+          amount: Number(order.totalAmount),
+          status: 'Completed',
+          time: new Date(order.createdAt).toLocaleTimeString([], {
+            hour: '2-digit',
+            minute: '2-digit',
+          }),
+        })),
+      );
+    }
+    if (meRes.status === 'fulfilled') {
+      setStaffName(meRes.value.email);
+    }
   }, []);
 
   useEffect(() => {
     if (!isAuthenticated) return;
-    const loadProducts = async () => {
-      try {
-        await refreshData();
-      } catch (error) {
-        console.error('Failed to load data from backend:', error);
-      }
-    };
-    void loadProducts();
+    void refreshData();
   }, [isAuthenticated, refreshData]);
 
-  const handleLogin = useCallback(async (email: string, password: string) => {
-    await loginApi(email, password);
-    setIsAuthenticated(true);
-    await refreshData();
-    setCurrentView('dashboard');
-  }, [refreshData]);
+  /** หน้าหลัก = Dashboard เสมอ */
+  useEffect(() => {
+    setCurrentView((v) =>
+      v === 'login' || v === 'register' ? 'dashboard' : v,
+    );
+  }, []);
 
+  /*
   const handleRegister = useCallback(
     async (fullName: string, email: string, password: string) => {
       await registerApi(fullName, email, password);
@@ -115,8 +132,10 @@ export default function App() {
     },
     [refreshData],
   );
+  */
 
   const handleLogout = useCallback(() => {
+    if (AUTH_DISABLED) return;
     logoutApi();
     setIsAuthenticated(false);
     setCartItems([]);
@@ -232,13 +251,6 @@ export default function App() {
   }, [handleClearCart, refreshData]);
 
   const renderView = () => {
-    if (!isAuthenticated) {
-      if (currentView === 'register') {
-        return <Register onViewChange={setCurrentView} onRegister={handleRegister} />;
-      }
-      return <Login onViewChange={setCurrentView} onLogin={handleLogin} />;
-    }
-
     switch (currentView) {
       case 'dashboard': return (
         <Dashboard 
@@ -301,8 +313,8 @@ export default function App() {
       case 'cart': return 'Order Details';
       case 'checkout': return 'Checkout';
       case 'inventory': return 'Inventory';
-      case 'login': return 'Login';
-      case 'register': return 'Register';
+      case 'login': return 'Dashboard';
+      case 'register': return 'Dashboard';
     }
   };
 
@@ -314,7 +326,7 @@ export default function App() {
           title={getTitle()}
           onViewChange={setCurrentView}
           staffName={staffName}
-          onLogout={handleLogout}
+          onLogout={AUTH_DISABLED ? undefined : handleLogout}
         />
       )}
       
@@ -345,4 +357,3 @@ export default function App() {
     </div>
   );
 }
-
