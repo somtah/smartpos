@@ -1,0 +1,36 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+*.tsbuildinfo
+
+# Environment & secrets (keep .env.example)
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Uploads & generated files
+backend/uploads/
+**/uploads/products/
+
+# Logs & OS
+*.log
+.DS_Store
+Thumbs.db
+
+# IDE / tooling
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Test / coverage
+coverage/
+
+# Prisma (keep migrations; generated client is in node_modules)
+# Uncomment if you prefer not to commit SQLite dev DB:
+# *.db
+# *.db-journal
