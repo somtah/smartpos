@@ -182,11 +182,16 @@ async function ensureToken(): Promise<string> {
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const token = await ensureToken();
+  const baseHeaders: Record<string, string> = {
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+  if (init?.body && !(init.body instanceof FormData)) {
+    baseHeaders['Content-Type'] = 'application/json';
+  }
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
     headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...baseHeaders,
       ...(init?.headers ?? {}),
     },
   });
