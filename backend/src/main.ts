@@ -11,14 +11,12 @@ async function bootstrap() {
   ensureProductUploadDir();
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
   app.useStaticAssets(join(process.cwd(), 'uploads'), { prefix: '/uploads/' });
-  const frontendOrigin = process.env.FRONTEND_ORIGIN?.trim();
-  if (frontendOrigin) {
-    app.enableCors({
-      origin: frontendOrigin.split(',').map((o) => o.trim()),
-    });
-  } else {
-    app.enableCors();
-  }
+  app.enableCors({
+    origin: true,
+    methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    optionsSuccessStatus: 204,
+  });
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
