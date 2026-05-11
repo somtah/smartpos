@@ -9,8 +9,8 @@ import { User, UserRole } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service';
 import { UsersService } from '../users/users.service';
-import { LoginDto } from './dto/login.dto';
-import { RegisterDto } from './dto/register.dto';
+// import { LoginDto } from './dto/login.dto';
+// import { RegisterDto } from './dto/register.dto';
 
 @Injectable()
 export class AuthService {
@@ -21,6 +21,7 @@ export class AuthService {
     private readonly configService: ConfigService,
   ) {}
 
+  /*
   async register(registerDto: RegisterDto) {
     const existing = await this.usersService.findByEmail(registerDto.email);
     if (existing) throw new UnauthorizedException('Email already used');
@@ -90,6 +91,7 @@ export class AuthService {
 
     return this.issueTokens(token.user);
   }
+  */
 
   async logout(userId: string, refreshToken: string) {
     const tokens = await this.prisma.refreshToken.findMany({

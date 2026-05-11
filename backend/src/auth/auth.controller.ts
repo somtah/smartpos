@@ -6,14 +6,16 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { AuthService } from './auth.service';
-import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
-import { RegisterDto } from './dto/register.dto';
+// import { LoginDto } from './dto/login.dto';
+// import { RegisterDto } from './dto/register.dto';
 
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
+  // --- Login / register / refresh ปิดชั่วคราว (เปิดกลับเมื่อต้องการให้สมัครและล็อกอินผ่าน API) ---
+  /*
   @Public()
   @Post('register')
   register(@Body() registerDto: RegisterDto) {
@@ -31,6 +33,7 @@ export class AuthController {
   refresh(@Body() refreshTokenDto: RefreshTokenDto) {
     return this.authService.refresh(refreshTokenDto.refreshToken);
   }
+  */
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Post('logout')
